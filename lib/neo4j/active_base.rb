@@ -35,9 +35,51 @@ module Neo4j
         self.current_session = Neo4j::Core::CypherSession.new(adaptor)
       end
 
-      def run_transaction(run_in_tx = true)
+      # the "session" parameter of Neo4j::Core::CypherSession::Transactions::Base
+      # simply needs to be the same object for all Transactions in the same thread.
+      # cheat by having a class that acts as a shared object for all mock transactions
+      # it is used two ways by Transactions::Base internally:
+      # 1. as a hash key (e.g. a hash that contains all active transactions for the session)
+      # 2. it needs to have a "version" for some silly conditional in the code
+      class MockSessionRegistry
+        extend ActiveSupport::PerThreadRegistry
+        attr_accessor :session
+
+        # just like SessionRegistry, ensure each thread gets its own session
+        # by using PerThreadRegistry and a lazy-intialized attr
+        def self.current_session
+          self.session ||= self.new
+        end
+
+        # return whatever version the regular HTTP or Bolt session would've returned
+        def version
+          Neo4j::ActiveBase.current_session.version
+        end
+      end
+
+      # default to no transaction, unless forced externally
+      def run_transaction(run_in_tx = false)
         Neo4j::Transaction.run(current_session, run_in_tx) do |tx|
-          yield tx
+          if tx
+            yield tx
+          else
+            # some code paths in neo4jrb rely on having a properly-constructed
+            # transaction stack that fires its "after_commit" hook at the right
+            # time. the easiest way to accomplish this is with an actual transaction
+            # object which will construct right the transaction nesting to preserve
+            # callback order, but which is not a real HTTP or Bolt transaction
+            mock_tx = Neo4j::Core::CypherSession::Transactions::Base.new(MockSessionRegistry.current_session)
+            # overwrite unimplemented methods with no-op methods
+            def mock_tx.commit; end
+            def mock_tx.delete; end
+            # pass back the no-op transaction instead of an HTTP or Bolt transaction
+            return_value = yield mock_tx
+            # call close to finish the callback chain
+            mock_tx.close
+            # be sure to return the value of the transaction so e.g. `update!` calls
+            # still return true or false
+            return_value
+         end
         end
       end
 

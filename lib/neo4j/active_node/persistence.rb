@@ -96,7 +96,12 @@ module Neo4j::ActiveNode
     # build the processable hash before it begins. If there are nodes and associations that
     # need to be created after the node is saved, a new transaction is started.
     def cascade_save
-      self.class.run_transaction(pending_deferred_creations?) do
+      # default to no transaction, unless forced externally
+      self.class.run_transaction(false) do
+        # this particular method is the reason for the mock_tx object in ActiveBase
+        # the callback order will not be preserved if we simply try to change the
+        # order of calls in create_model and update_model without having a real
+        # transaction stack to unwind
         yield.tap { process_unpersisted_nodes! }
       end
     end

@@ -228,7 +228,8 @@ module Neo4j::Shared
     end
 
     module ClassMethods
-      def run_transaction(run_in_tx = true)
+      # default to no transaction, unless forced externally
+      def run_transaction(run_in_tx = false)
         Neo4j::ActiveBase.run_transaction(run_in_tx) { |tx| yield tx }
       end
     end
