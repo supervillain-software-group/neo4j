@@ -14,8 +14,20 @@ module Neo4j::Shared
       props = props_for_update
       neo4j_query(query_as(:n).set(n: props))
       _persisted_obj.props.merge!(props)
+      # begin jjordan customization
+      changes_applied
+      # end jjordan customization
       changed_attributes_clear!
     end
+
+    # begin jjordan customization
+    def forget_attribute_assignments
+      # no-op; override forget_attribute_assignments which is not
+      # possible with neo4jrb. neo4jrb's @attributes are not
+      # ActiveModel::Attribute instances, it is just a hash
+      # and so they do not each implement #forgetting_assignment
+    end
+    # end jjordan customization
 
     def skip_update?
       changed_attributes.blank?

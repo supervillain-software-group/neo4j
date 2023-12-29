@@ -55,6 +55,9 @@ module Neo4j::ActiveNode
     # @return true
     def create_model
       node = _create_node(props_for_create)
+      # begin jjordan customization
+      changes_applied
+      # end jjordan customization
       init_on_load(node, node.props)
       @deferred_nodes = nil
       true
