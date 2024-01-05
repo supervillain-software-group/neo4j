@@ -10,7 +10,12 @@ module Neo4j::Shared
     end
 
     def update_model
-      return if skip_update?
+      if skip_update?
+        # begin jjordan customization
+        changes_applied
+        # end jjordan customization  
+        return
+      end
       props = props_for_update
       neo4j_query(query_as(:n).set(n: props))
       _persisted_obj.props.merge!(props)
